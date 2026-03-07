@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant Main
+    participant Runner
+    participant PluginRegistry
+    participant Plugins
+
+    rect rgb(240,248,255)
+    Note over Main,Runner: Application startup / initialization
+    Main->>Plugins: RegisterAllPlugins()
+    Note right of Plugins: registers repository-specific plugins
+    Main->>Runner: NewRunner()
+    Runner->>PluginRegistry: parsePluginsConfiguration()
+    PluginRegistry-->>Runner: parsed config
+    Runner->>PluginRegistry: register built-in GIE plugins
+    PluginRegistry->>Plugins: register(built-in plugin...)
+    PluginRegistry-->>Runner: registration complete
+    end

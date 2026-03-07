@@ -1,0 +1,86 @@
+sequenceDiagram
+    participant Operator
+    participant Envoy as Envoy/Client
+    participant Handler
+    participant Director
+    participant Datastore
+    participant PodLocator
+    participant AdmissionCtrl as AdmissionController
+    participant Prepare as PrepareDataPlugins
+    participant Admission as AdmissionPlugins
+    participant Scheduler
+    participant PreReq as PreRequestPlugins
+    participant Model as ModelServer
+    participant Response as ResponsePlugins
+
+    rect rgb(245,245,245)
+        Note over Envoy,Director: Request handling
+        Envoy->>Handler: HTTP/gRPC request
+        Handler->>Director: HandleRequest(reqCtx)
+        Note over Director: Parse incoming model and apply model rewrite
+        Director->>Director: applyWeightedModelRewrite(reqCtx)
+        Note over Director: Extract request body internally (request parsing)
+        Director->>Director: ExtractRequestBody
+        Director-->>Director: LLMRequestBody
+        Director->>Datastore: ObjectiveGet(reqCtx.ObjectiveKey)
+        Datastore-->>Director: InferenceObjective (or nil)
+        Director->>Director: getInferenceObjective (set default priority)
+        Director->>AdmissionCtrl: Admit(ctx, reqCtx, priority)
+        AdmissionCtrl-->>Director: allowed/denied
+        alt allowed
+            rect rgb(220,255,220)
+                Director->>PodLocator: Locate(ctx, metadata)
+                PodLocator-->>Director: candidatePods
+                Director->>Director: convert pods -> scheduler endpoints (toSchedulerPodMetrics)
+                Note right of Director: Before scheduling run PrepareDataPlugins
+                Director->>Prepare: runPrepareDataPlugins(ctx, LLMRequest, endpoints)
+                alt prepare-data success
+                    rect rgb(220,255,220)
+                        Prepare-->>Director: enriched request (optional)
+                    end
+                else timeout/error
+                    rect rgb(255,230,230)
+                        Prepare-->>Director: log and continue (fail-open)
+                    end
+                end
+                Director->>Admission: runAdmissionPlugins(ctx, LLMRequest, endpoints)
+                alt any deny
+                    rect rgb(255,230,230)
+                        Admission-->>Director: deny -> return error
+                    end
+                else all allow
+                    rect rgb(220,255,220)
+                        Admission-->>Director: allow
+                        Director->>Scheduler: Schedule(ctx, LLMRequest, endpoints)
+                        Scheduler-->>Director: SchedulingResult
+                        Director->>Director: prepareRequest(ctx, reqCtx, result)
+                        Director->>PreReq: runPreRequestPlugins(ctx, LLMRequest, result)
+                        PreReq-->>Director: done
+                        Director-->>Handler: reqCtx with TargetPod/TargetEndpoint
+                    end
+                end
+            end
+        else denied
+            rect rgb(255,230,230)
+                AdmissionCtrl-->>Director: deny -> return error
+            end
+        end
+    end
+
+    rect rgb(255,250,240)
+        Note over Handler,Director: Response handling
+        Handler->>Director: HandleResponseReceived(ctx, reqCtx)
+        Director->>Response: runResponseReceivedPlugins(ctx, LLMRequest, response, targetPod)
+        Response-->>Director: done
+
+        Handler->>Director: HandleResponseBodyStreaming(ctx, reqCtx)
+        Director->>Response: runResponseStreamingPlugins(ctx, LLMRequest, chunkResponse, targetPod)
+        Response-->>Director: done
+
+        Handler->>Director: HandleResponseBodyComplete(ctx, reqCtx)
+        Director->>Response: runResponseCompletePlugins(ctx, LLMRequest, finalResponse, targetPod)
+        Response-->>Director: done
+    end
+
+    Note over Director: Helpers
+    Note over Director: applyWeightedModelRewrite, selectWeightedModel, toSchedulerPodMetrics, GetRandomEndpoint

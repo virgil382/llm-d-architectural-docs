@@ -1,0 +1,56 @@
+sequenceDiagram
+    participant Caller as Director/Handler
+    participant Scheduler
+    participant ProfileHandler as ProfileHandler (plugin)
+    participant Profile as SchedulerProfile
+    participant Filters as FilterPlugins
+    participant Scorers as ScorerPlugins
+    participant Picker as PickerPlugin
+
+    Note over Caller,Scheduler: Scheduler.Schedule(ctx, request, candidateEndpoints)
+    Caller->>Scheduler: Schedule(ctx, request, candidateEndpoints)
+
+    Note over Scheduler: initialize profileRunResults, cycleState
+    loop iterative profile selection
+        Scheduler->>ProfileHandler: Pick(ctx, cycleState, request, profiles, profileRunResults)
+        ProfileHandler-->>Scheduler: profilesToRun (map[name]SchedulerProfile)
+        alt no profiles returned
+            rect rgb(255,230,230)
+                Note right of Scheduler: break loop
+            end
+        else profiles returned
+            loop for each (name, profile) in profilesToRun
+                Scheduler->>Profile: Run(ctx, request, cycleState, candidateEndpoints)
+
+                Note over Profile: Run invokes plugins in order: Filters -> Scorers -> Picker
+                Profile->>Filters: runFilterPlugins(ctx, request, cycleState, candidateEndpoints)
+                Filters-->>Profile: filteredEndpoints (may be empty -> error)
+
+                alt filtered endpoints present
+                  rect rgb(220,255,220)
+                      Profile->>Scorers: runScorerPlugins(ctx, request, cycleState, filteredEndpoints)
+                      Scorers-->>Profile: weightedScorePerEndpoint (map[Endpoint]float)
+
+                      Profile->>Picker: runPickerPlugin(ctx, cycleState, weightedScorePerEndpoint)
+                      Picker-->>Profile: ProfileRunResult (selected endpoints)
+
+                      Profile-->>Scheduler: profileRunResult (stored under profile name)
+                  end
+                else no endpoints after filters
+                  rect rgb(255,230,230)
+                      Profile-->>Scheduler: error / nil profileRunResult
+                  end
+                end
+            end
+        end
+    end
+
+    Note over Scheduler: after loop, ensure at least one profileRunResult
+    Scheduler->>ProfileHandler: ProcessResults(ctx, cycleState, request, profileRunResults)
+    ProfileHandler-->>Scheduler: SchedulingResult
+
+    Scheduler-->>Caller: SchedulingResult, err
+
+    Note over Scheduler: Metrics recorded at several points:
+    Note over Scheduler: - plugin latencies (ProfilePicker, Filter, Scorer, Picker, ProcessResults)
+    Note over Scheduler: - scheduler E2E latency and attempt count

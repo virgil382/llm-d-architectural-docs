@@ -1,0 +1,241 @@
+%% Mermaid class diagram generated from CONFIG_MODEL.md
+%% File: diagrams/CONFIG_MODEL.mmd
+
+classDiagram
+
+class ProfileHandler {
+  <<interface>>
+  +Pick(ctx, cycleState, request, profiles, profileResults)
+  +ProcessResults(ctx, cycleState, request, profileResults)
+}
+style ProfileHandler fill:#cfe8ff,stroke:#0b63a4,stroke-width:2px
+
+class PDDecider {
+  <<interface>>
+  +disaggregate(ctx, inputTokens, endpoint) bool
+}
+style PDDecider fill:#cfe8ff,stroke:#0b63a4,stroke-width:2px
+
+class Filter {
+  <<interface>>
+  +Filter(ctx, cycleState, request, endpoints) []Endpoint
+}
+style Filter fill:#cfe8ff,stroke:#0b63a4,stroke-width:2px
+
+class Scorer {
+  <<interface>>
+  +Score(ctx, cycleState, request, endpoints) map[Endpoint]float64
+  +Category() ScorerCategory
+}
+style Scorer fill:#cfe8ff,stroke:#0b63a4,stroke-width:2px
+
+class PreRequest {
+  <<interface>>
+  +PreRequest(ctx, request, schedulingResult)
+}
+style PreRequest fill:#cfe8ff,stroke:#0b63a4,stroke-width:2px
+
+class SchedulerProfile {
+  -filters []Filter
+  -scorers []*WeightedScorer
+  -picker Picker
+  +WithFilters(...)
+  +WithScorers(...)
+  +WithPicker(...)
+  +AddPlugins(...)
+  +Run(...)
+}
+
+style SchedulerProfile fill:#cfe8ff,stroke:#0b63a4,stroke-width:2px
+
+%% Concrete profile handlers
+class pd_profile_handler {
+  +TypedName
+  +Pick(...)
+  +ProcessResults(...)
+}
+class dp_profile_handler {
+  +TypedName
+  +ProcessResults(...)
+}
+
+class PdProfileHandlerConfig {
+  decodeProfile: string
+  prefillProfile: string
+  prefixPluginType: string
+  prefixPluginName: string
+  primaryPort: int
+  deciderPluginName: string
+}
+class DPProfileHandlerConfig {
+  primaryPort: int
+}
+
+ProfileHandler <|.. pd_profile_handler
+ProfileHandler <|.. dp_profile_handler
+pd_profile_handler o-- PdProfileHandlerConfig
+dp_profile_handler o-- DPProfileHandlerConfig
+SchedulerProfile o-- Filter
+SchedulerProfile o-- WeightedScorer
+SchedulerProfile o-- Picker
+
+%% PD Deciders
+class always_disagg_pd_decider {
+  +TypedName
+  +disaggregate(...)
+}
+class prefix_based_pd_decider {
+  +TypedName
+  +disaggregate(...)
+}
+class PrefixBasedPDDeciderConfig {
+  nonCachedTokens: int
+}
+PDDecider <|.. always_disagg_pd_decider
+PDDecider <|.. prefix_based_pd_decider
+prefix_based_pd_decider o-- PrefixBasedPDDeciderConfig
+
+%% pd_profile_handler consults a PDDecider during Pick
+pd_profile_handler ..> PDDecider : consults in Pick
+
+%% PreRequest
+class prefill_header_handler {
+  +TypedName
+  +PreRequest(...)
+}
+class PrefillHeaderHandlerConfig {
+  prefillProfile: string
+}
+PreRequest <|.. prefill_header_handler
+prefill_header_handler o-- PrefillHeaderHandlerConfig
+
+%% Filters
+class by_label {
+  +TypedName
+  +Filter(...)
+}
+class by_label_selector {
+  +TypedName
+  +Filter(...)
+}
+class ByLabelConfig {
+  label: string
+  validValues: []string
+  allowsNoLabel: bool
+}
+class ByLabelSelectorConfig {
+  labelSelector: LabelSelector
+}
+Filter <|.. by_label
+Filter <|.. by_label_selector
+by_label o-- ByLabelConfig
+by_label_selector o-- ByLabelSelectorConfig
+
+%% Scorers
+class precise_prefix_cache_scorer {
+  +TypedName
+  +Score(...)
+}
+class no_hit_lru_scorer {
+  +TypedName
+  +Score(...)
+  +PreRequest(...)
+}
+class load_aware_scorer {
+  +TypedName
+  +Score(...)
+}
+class active_request_scorer {
+  +TypedName
+  +Score(...)
+  +PreRequest(...)
+  +ResponseComplete(...)
+}
+class session_affinity_scorer {
+  +TypedName
+  +Score(...)
+  +ResponseComplete(...)
+}
+
+class PrecisePrefixCacheConfig {
+  tokenProcessorConfig: kvblock.TokenProcessorConfig
+  indexerConfig: kvcache.Config
+  kvEventsConfig: kvevents.Config
+}
+class NoHitLRUConfig {
+  prefixPluginType: string
+  prefixPluginName: string
+  lruSize: int
+}
+class LoadAwareConfig { threshold: int }
+class ActiveRequestConfig { requestTimeout: string }
+
+class WeightedScorer {
+  +Scorer
+  weight: float
+}
+
+Scorer <|.. precise_prefix_cache_scorer
+Scorer <|.. no_hit_lru_scorer
+Scorer <|.. load_aware_scorer
+Scorer <|.. active_request_scorer
+Scorer <|.. session_affinity_scorer
+precise_prefix_cache_scorer o-- PrecisePrefixCacheConfig
+no_hit_lru_scorer o-- NoHitLRUConfig
+load_aware_scorer o-- LoadAwareConfig
+active_request_scorer o-- ActiveRequestConfig
+WeightedScorer o-- Scorer
+
+%% CycleState prepare-state used for prefix prepare/read sharing
+%%class CycleState {
+%%  +prepareState: map[string]any
+%%}
+%%style CycleState fill:#ffffff,stroke:#cccccc,stroke-width:1px
+
+%%precise_prefix_cache_scorer ..> CycleState : writes prepare-state (key=TypedName)
+%%no_hit_lru_scorer ..> CycleState : reads prepare-state (by prefixPluginType/name)
+
+%% Notes: external composite types
+%% tokenProcessorConfig = kvblock.TokenProcessorConfig
+%% indexerConfig = kvcache.Config
+%% kvEventsConfig = kvevents.Config
+%% Represent these as composite classes or expand if needed.
+
+%% Scheduler and its config
+class SchedulerConfig {
+  -profileHandler: ProfileHandler
+  -profiles: map[string]SchedulerProfile
+}
+
+class Scheduler {
+  -profileHandler: ProfileHandler
+  -profiles: map[string]SchedulerProfile
+  +NewSchedulerWithConfig(config *SchedulerConfig)
+  +Schedule(ctx, request, candidateEndpoints)
+}
+
+style Scheduler fill:#cfe8ff,stroke:#0b63a4,stroke-width:2px
+
+
+SchedulerConfig o-- ProfileHandler
+SchedulerConfig o-- SchedulerProfile
+Scheduler o-- SchedulerConfig
+Scheduler o-- ProfileHandler
+Scheduler o-- SchedulerProfile
+
+%% Director: prepares requests and runs request-control plugins
+class Director {
+  -requestControlPlugins
+  +prepareRequest(ctx, reqCtx, schedulingResult)
+  +runPreRequestPlugins(ctx, request, schedulingResult)
+  +runResponseReceivedPlugins(...)
+  +runResponseStreamingPlugins(...)
+  +runResponseCompletePlugins(...)
+}
+style Director fill:#f0f7e8,stroke:#2a8f2a,stroke-width:2px
+
+%% Relationships: Director orchestrates Scheduler and request-control plugins
+Director ..> Scheduler : calls Schedule
+Director ..> PreRequest : runs preRequestPlugins
+Director ..> PDDecider : (indirectly consulted via ProfileHandler)
+%%Director ..> CycleState : reads scheduling result / context
