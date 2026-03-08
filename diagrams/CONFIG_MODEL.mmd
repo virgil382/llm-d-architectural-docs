@@ -237,5 +237,5 @@ style Director fill:#f0f7e8,stroke:#2a8f2a,stroke-width:2px
 %% Relationships: Director orchestrates Scheduler and request-control plugins
 Director ..> Scheduler : calls Schedule
 Director ..> PreRequest : runs preRequestPlugins
-Director ..> PDDecider : (indirectly consulted via ProfileHandler)
+%%Director ..> PDDecider : (indirectly consulted via ProfileHandler)
 %%Director ..> CycleState : reads scheduling result / context

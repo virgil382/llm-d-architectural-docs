@@ -74,11 +74,11 @@ At the heart of the EPP (which extends the Gateway API Inference Extension) is t
     - Scheduler implementations convert discovered pods to endpoints, apply filters and scorers, and run selection algorithms.
     - The scheduling pipeline uses filter and scorer plugins (and may apply weighted-model selection or rewrite rules) to return the best endpoint(s).
 
-- Prepare/PreRequest/Admission/Response plugin implementations in this repo: [pkg/plugins/pre-request/pd_prerequest.go](https://github.com/llm-d/llm-d-inference-scheduler/blob/main/pkg/plugins/pre-request/pd_prerequest.go), scorer plugins under [pkg/plugins/scorer](https://github.com/llm-d/llm-d-inference-scheduler/blob/main/pkg/plugins/scorer), filter plugins under [pkg/plugins/filter], and profile/PD deciders under [pkg/plugins/profile].
-    - `pkg/plugins/pre-request/pd_prerequest.go`: prepares the outbound request to the model server (target selection, header injection, auth headers).
-    - `Scorer` (interface) plugins (`pkg/plugins/scorer`): compute numeric scores used by the scheduler to rank endpoints. Declaration: [https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/framework/interface/scheduling/plugins.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/framework/interface/scheduling/plugins.go) — method: `Score(ctx, cycleState, request, pods) map[Endpoint]float64` (scores normalized to [0,1]) and `Category() ScorerCategory`.
-    - `Filter` (interface) plugins (`pkg/plugins/filter`): exclude or mutate candidate endpoints before scoring. Declaration: [https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/framework/interface/scheduling/plugins.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/framework/interface/scheduling/plugins.go) — method: `Filter(ctx, cycleState, request, pods) []Endpoint`.
+- Prepare/PreRequest/Admission/Response plugin implementations in the `llm-d-inference-scheduler` repo: [pkg/plugins/pre-request/pd_prerequest.go](https://github.com/llm-d/llm-d-inference-scheduler/blob/main/pkg/plugins/pre-request/pd_prerequest.go), scorer plugins under [pkg/plugins/scorer](https://github.com/llm-d/llm-d-inference-scheduler/blob/main/pkg/plugins/scorer), filter plugins under [pkg/plugins/filter], and profile/PD deciders under [pkg/plugins/profile].
     - Profile / PD deciders (`pkg/plugins/profile`): influence placement decisions (PD selection, fallback pools, priority-specific rules).
+    - `Filter` (interface) plugins (`pkg/plugins/filter`): exclude or mutate candidate endpoints before scoring. Declaration: [https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/framework/interface/scheduling/plugins.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/framework/interface/scheduling/plugins.go) — method: `Filter(ctx, cycleState, request, pods) []Endpoint`.
+    - `Scorer` (interface) plugins (`pkg/plugins/scorer`): compute numeric scores used by the scheduler to rank endpoints. Declaration: [https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/framework/interface/scheduling/plugins.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/framework/interface/scheduling/plugins.go) — method: `Score(ctx, cycleState, request, pods) map[Endpoint]float64` (scores normalized to [0,1]) and `Category() ScorerCategory`.
+    - `pkg/plugins/pre-request/pd_prerequest.go`: prepares the outbound request to the model server (target selection, header injection, auth headers).
     - All repo plugins are registered via `pkg/plugins/register.go` and configured by the Runner; they must follow the defined interfaces and error-handling semantics.
 
 ![Director Sequence](diagrams/DirectorSequence.png)
@@ -213,7 +213,7 @@ The interfaces in this section are realized by plugins, most of which are config
   - **Behavior**:
     - expects a single profile
     - rewrites selected endpoints to use `primaryPort`
-    - sets DataParallel header
+    - sets [`DataParallel`](https://github.com/llm-d/llm-d-inference-scheduler/blob/main/pkg/common/common.go) header (i.e. `x-data-parallel-host-port` indicating the worker `<ip:port>` for Data Parallel)
 
 #### Concrete PD Deciders (`pdDeciderPlugin`s)
 - [**`always-disagg-pd-decider`**](https://github.com/llm-d/llm-d-inference-scheduler/blob/main/pkg/plugins/profile/always_disagg_decider.go):
@@ -224,7 +224,7 @@ The interfaces in this section are realized by plugins, most of which are config
 
 - [**`prefix-based-pd-decider`**](https://github.com/llm-d/llm-d-inference-scheduler/blob/main/pkg/plugins/profile/prefix_based_pd_decider.go):
   - **Config**:
-    - `nonCachedTokens` (int): threshold of non-cached tokens that triggers disaggregation (must be >= 0)
+    - `nonCachedTokens` (int): threshold of non-cached tokens in the user input that triggers PD disaggregation (must be >= 0)
   - **Behavior**:
     - reads prefix cache match info from endpoint (consumes `approximateprefix.PrefixCacheMatchInfoKey` — written by the [`prefix`](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/framework/plugins/scheduling/scorer/prefix/plugin.go) PrepareData plugin and stored in the scheduling `CycleState` under the plugin's `TypedName.String()` key)
     - decides based on computed non-cached suffix length
@@ -281,7 +281,7 @@ The interfaces in this section are realized by plugins, most of which are config
 - **`prefill-header-handler`**: [pkg/plugins/pre-request/pd_prerequest.go](https://github.com/llm-d/llm-d-inference-scheduler/blob/main/pkg/plugins/pre-request/pd_prerequest.go#L73)
   - **Config**:
     - `prefillProfile` (string, default "prefill")
-  - **Behavior**: after profiles run, inserts `PrefillPodHeader` into outbound request headers when prefill profile result exists.
+  - **Behavior**: after profiles run, inserts [`PrefillPodHeader`](https://github.com/llm-d/llm-d-inference-scheduler/blob/main/pkg/common/common.go#L11) (i.e. `x-prefiller-host-port` indicating the prefill cluster `<ip:port>`) into outbound request headers when prefill profile result exists.
 
 ![Configuration model and class diagram](diagrams/CONFIG_MODEL.png)
 
@@ -532,7 +532,7 @@ schedulingProfiles:
 
 - **Where implemented**: repository handlers live under `pkg/plugins/profile` and are registered by `pkg/plugins/register.go`.
 
-- **Concrete handlers in this repo:**
+- **Concrete handlers in the `llm-d-inference-scheduler` repo:**
   - `pd-profile-handler` (`PdProfileHandler`) — [pkg/plugins/profile/pd_profile_handler.go](pkg/plugins/profile/pd_profile_handler.go)
     - **Behavior**: enforces a decode-first strategy. On the first cycle it returns the configured `decode` profile to run. If decode succeeds and a configured `pdDecider` indicates disaggregation is needed, it will instruct the scheduler to run the `prefill` profile next; finally `ProcessResults` rewrites endpoints into Data‑Parallel form when `primaryPort` is configured and includes both decode and prefill results when available.
     - **Config params (factory)**:
@@ -542,6 +542,7 @@ schedulingProfiles:
       - `prefixPluginName`: the plugin *instance name* (from top-level `plugins:`) to run for prefix preparation. Allows selecting a specific configured instance when multiple prefix plugins exist. (default: same as `prefixPluginType`)  **Note**: like `prefixPluginType`, the `PdProfileHandler` stores the configured instance name so other plugins can find the prefix prepare-state in the scheduling `CycleState`. The handler does not invoke the prefix plugin directly at runtime.
       - `primaryPort`: TCP port number used when rewriting endpoints into Data‑Parallel form; `ProcessResults` uses this to set the primary service port on rewritten endpoints and to populate routing headers. (default: `0` — no primary port / no rewrite)
       - `deciderPluginName`: name of the PD-decider plugin (from `plugins:`) used to decide whether to run `prefill` after `decode`. Controls the disaggregation decision logic. (default: `AlwaysDisaggDeciderPluginType` — typically "always-disagg-pd-decider")
+
   - `data-parallel-profile-handler` (`DataParallelProfileHandler`) — [pkg/plugins/profile/dp_profile_handler.go](pkg/plugins/profile/dp_profile_handler.go)
     - **Behavior**: intended for single-profile Data‑Parallel workflows; validates exactly one profile is configured and converts its run result into Data‑Parallel endpoints (rewrites ports and sets the DataParallel header) in `ProcessResults`.
     - **Config params (factory)**: `primaryPort`.
