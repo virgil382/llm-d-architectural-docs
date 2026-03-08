@@ -556,4 +556,3 @@ schedulingProfiles:
     - SchedulerProfile implementation: [https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/scheduling/scheduler_profile.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/scheduling/scheduler_profile.go)
   - Profile handlers: [pkg/plugins/profile](pkg/plugins/profile)
 
-            
