@@ -113,7 +113,7 @@ PD (Disaggregated Prefill‑Decode) notes:
 ![Scheduler Sequence](diagrams/SchedulerSequence.png)
 
 
-## Class diagram and configuration model
+## Class diagram
 
 ![Configuration model and class diagram](diagrams/CONFIG_MODEL.png)
 
