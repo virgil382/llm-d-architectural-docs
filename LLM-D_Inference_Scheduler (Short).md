@@ -1,6 +1,6 @@
 # LLM-D Inference Scheduler — Short Slide Deck
 
-Last Update: 2026-03-07
+Last Update: 2026-03-08
 
 ## Initialization Sequence
 - Key points:
