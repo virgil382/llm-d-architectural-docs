@@ -1,6 +1,8 @@
 # LLM-D Architectural Views: Inference Scheduler
 
-This document contains select component-level (i.e. low-level) architectural views such as *UML sequence diagrams* and *UML class diagrams* pertaining to the [LLM-D Inference Scheduler](https://github.com/llm-d/llm-d-inference-scheduler/tree/main), which extends the [Gateway API Inference Extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/tree/main) a.k.a. GIE or IGW. For high-level architectural views of LLM-D, consult the repos that it references and this excellent overview of LLM-D and its capabilities see this video by Robert Shaw:
+This document contains select component-level (i.e. low-level) architectural views such as *UML sequence diagrams* and *UML class diagrams* pertaining to the [LLM-D Inference Scheduler](https://github.com/llm-d/llm-d-inference-scheduler/tree/main), which extends the [Gateway API Inference Extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/tree/main) a.k.a. GIE or IGW. The `Inference Scheduler` implements inference request routing logic to optimize LLM inference via **dissagregated Prefill-Decode (PD)** inference cluster topologies.
+
+For high-level architectural views, consult the repos that this document references, as well as this excellent video by Robert Shaw presenting a technical overview of LLM-D's features:
 
 [![LLM-D overview (YouTube)](https://img.youtube.com/vi/_xAXb70d4-0/hqdefault.jpg)](https://www.youtube.com/watch?v=_xAXb70d4-0)
 
@@ -554,3 +556,4 @@ schedulingProfiles:
     - SchedulerProfile implementation: [https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/scheduling/scheduler_profile.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/scheduling/scheduler_profile.go)
   - Profile handlers: [pkg/plugins/profile](pkg/plugins/profile)
 
+            
