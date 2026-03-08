@@ -23,9 +23,9 @@ jobs:
         run: |
           set -euo pipefail
           DATE=$(date -u +%F)
-          FILES="LLM-D_Inference_Scheduler.md README.md"
+          FILES=("LLM-D_Inference_Scheduler.md" "README.md" "LLM-D_Inference_Scheduler (Short).md")
           changed=false
-          for f in $FILES; do
+          for f in "${FILES[@]}"; do
             if [ -f "$f" ]; then
               if grep -q '^Last Update:' "$f"; then
                 sed -i "s/^Last Update:.*/Last Update: $DATE/" "$f"
