@@ -80,6 +80,3 @@ sequenceDiagram
         Director->>Response: runResponseCompletePlugins(ctx, LLMRequest, finalResponse, targetPod)
         Response-->>Director: done
     end
-
-    Note over Director: Helpers
-    Note over Director: applyWeightedModelRewrite, selectWeightedModel, toSchedulerPodMetrics, GetRandomEndpoint
