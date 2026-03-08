@@ -1,6 +1,6 @@
 # LLM-D Architectural Views: Inference Scheduler
 
-Last Update: 2026-03-07
+Last Update: 2026-03-08
 
 This document contains select component-level (i.e. low-level) architectural views such as *UML sequence diagrams* and *UML class diagrams* pertaining to the [LLM-D Inference Scheduler](https://github.com/llm-d/llm-d-inference-scheduler/tree/main), which extends the [Gateway API Inference Extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/tree/main) a.k.a. GIE or IGW. The **Inference Scheduler** implements optimized request routing logic that leverages **dissagregated Prefill-Decode (PD)** inference cluster topologies.
 
