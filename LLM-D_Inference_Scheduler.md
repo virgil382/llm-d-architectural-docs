@@ -397,7 +397,7 @@ The interfaces in this section are realized by plugins, most of which are config
 - Interaction: use with `NoHitLRU` and load-aware scorers to balance cache affinity against load and freshness; ensure cache metadata is maintained by pre-request or background processes.
 - Caution: cache staleness or incorrect metadata can produce suboptimal routing; provide mechanisms to invalidate or soften cache bonuses when cache health is uncertain.
 
-## Appendix G — pkg/epp/framework/plugins/scheduling/scorer/prefix
+# Appendix G — pkg/epp/framework/plugins/scheduling/scorer/prefix
 
 - **Purpose:** Compute and attach longest-prefix match metadata to endpoints so downstream scorers and filters can prefer endpoints with cache hits or affinity for the request prefix.
 
