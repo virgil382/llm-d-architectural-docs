@@ -1,6 +1,6 @@
 # LLM-D Architectural Views: Inference Scheduler
 
-Last Update: 2026-03-08
+Last Update: 2026-03-07
 
 This document contains select component-level (i.e. low-level) architectural views such as *UML sequence diagrams* and *UML class diagrams* pertaining to the [LLM-D Inference Scheduler](https://github.com/llm-d/llm-d-inference-scheduler/tree/main), which extends the [Gateway API Inference Extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/tree/main) a.k.a. GIE or IGW. The **Inference Scheduler** implements optimized request routing logic that leverages **dissagregated Prefill-Decode (PD)** inference cluster topologies.
 
@@ -113,7 +113,7 @@ PD (Disaggregated Prefill‑Decode) notes:
 ![Scheduler Sequence](diagrams/SchedulerSequence.png)
 
 
-## Class diagram
+## Class diagram (focused on Inference Scheduler)
 
 ![Configuration model and class diagram](diagrams/CONFIG_MODEL.png)
 
@@ -229,7 +229,7 @@ PD (Disaggregated Prefill‑Decode) notes:
 - Interaction: use with `NoHitLRU` and load-aware scorers to balance cache affinity against load and freshness; ensure cache metadata is maintained by pre-request or background processes.
 - Caution: cache staleness or incorrect metadata can produce suboptimal routing; provide mechanisms to invalidate or soften cache bonuses when cache health is uncertain.
 
-# Appendix G — pkg/epp/framework/plugins/scheduling/scorer/prefix
+## Appendix G — pkg/epp/framework/plugins/scheduling/scorer/prefix
 
 - **Purpose:** Compute and attach longest-prefix match metadata to endpoints so downstream scorers and filters can prefer endpoints with cache hits or affinity for the request prefix.
 
