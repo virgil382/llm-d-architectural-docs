@@ -1,5 +1,8 @@
 name: Update Last Update Dates
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main ]
