@@ -7,40 +7,56 @@ sequenceDiagram
     participant Datastore as Datastore
     participant K8s as Kubernetes API
     participant EpFactory as EndpointFactory
-    participant Pod as Pod
     participant Director as Director/PodLocator
 
-    Runner->>Datastore: NewDatastore(ctx, epFactory, ...)
-    activate Datastore
-    Runner->>ExtProc: SetupWithManager(mgr, Datastore)
-    ExtProc->>Manager: Register controllers (InferencePoolReconciler, PodReconciler)
-
-    note over Manager,ExtProc: Manager.Start() runs controllers
-    Manager->>IPReconciler: Reconcile(InferencePool CR)
-    activate IPReconciler
-    IPReconciler->>Datastore: PoolSet(ctx, reader, endpointPool)
-    Datastore->>Datastore: podResyncAll(ctx, reader)
-    Datastore->>K8s: reader.List(Pods matching pool selector)
-    K8s-->>Datastore: PodList
-    loop for each ready Pod
-        Datastore->>Datastore: PodUpdateOrAddIfNotExist(pod)
-        Datastore->>EpFactory: NewEndpoint(metadata)
-        EpFactory-->>Datastore: Endpoint object stored
+    rect rgb(250,250,255)
+        Note over Runner,Datastore: Startup / Datastore creation
+        Runner->>Datastore: NewDatastore(ctx, epFactory, modelServerMetricsPort)
+        activate Datastore
+        Note right of Datastore: `datastore.NewDatastore` initializes internal maps
+        Runner->>ExtProc: SetupWithManager(mgr, Datastore)
+        ExtProc->>Manager: Register controllers (InferencePoolReconciler, PodReconciler)
     end
-    deactivate IPReconciler
 
-    %% Pod watch flow
-    K8s->>Manager: Pod create/update/delete event
-    Manager->>PodReconciler: Reconcile(pod)
-    activate PodReconciler
-    alt pod ready & matches pool
-        PodReconciler->>Datastore: PodUpdateOrAddIfNotExist(pod)
-    else pod removed or not ready
-        PodReconciler->>Datastore: PodDelete(podName)
+    rect rgb(245,245,245)
+        Note over Manager,IPReconciler: Controller manager starts and runs Reconcilers
+        Manager->>IPReconciler: Reconcile(InferencePool CR)
+        activate IPReconciler
+        IPReconciler->>Datastore: PoolSet(ctx, reader, endpointPool)
+        Note right of Datastore: `PoolSet` stores pool and may trigger `podResyncAll`
+        Datastore->>Datastore: podResyncAll(ctx, reader)
+        Datastore->>K8s: reader.List(ctx, &PodList{LabelSelector: pool.Selector, Namespace: pool.Namespace})
+        K8s-->>Datastore: PodList (all pods matching selector)
+
+        loop for each pod in PodList
+            alt PodReady && matches selector
+                Datastore->>Datastore: PodUpdateOrAddIfNotExist(pod)
+                Note right of Datastore: builds EndpointMetadata (Address, Port, Labels)
+                Datastore->>EpFactory: NewEndpoint(parentCtx, metadata, datastore)
+                EpFactory-->>Datastore: Endpoint object (fwkdl.Endpoint / PodMetrics) stored in map
+            else not ready
+                Datastore->>Datastore: ignore (or PodDelete if previously present)
+            end
+        end
+        deactivate IPReconciler
     end
-    deactivate PodReconciler
 
-    %% Consumer
-    Director->>Datastore: PodList(predicate)
-    Datastore-->>Director: candidatePods
+    rect rgb(245,255,245)
+        Note over K8s,PodReconciler: Pod watch (incremental updates)
+        K8s->>Manager: Pod create/update/delete event
+        Manager->>PodReconciler: Reconcile(pod)
+        activate PodReconciler
+        alt pod ready & matches pool
+            PodReconciler->>Datastore: PodUpdateOrAddIfNotExist(pod)
+        else pod removed or not ready
+            PodReconciler->>Datastore: PodDelete(podName)
+        end
+        deactivate PodReconciler
+    end
+
+    rect rgb(255,250,240)
+        Note over Director,Datastore: Runtime consumers query Datastore for candidates
+        Director->>Datastore: PodList(predicate)  \n// e.g., requestcontrol.PodLocator -> Datastore.PodList
+        Datastore-->>Director: []Endpoint (candidatePods)
+    end
     deactivate Datastore

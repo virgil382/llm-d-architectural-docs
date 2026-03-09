@@ -2,7 +2,7 @@
 
 Last Update: 2026-03-09
 
-This document contains select component-level (i.e. low-level) architectural views such as *UML sequence diagrams* and *UML class diagrams* pertaining to the [LLM-D Inference Scheduler](https://github.com/llm-d/llm-d-inference-scheduler/tree/main), which extends the [Gateway API Inference Extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/tree/main) a.k.a. GIE or IGW. The **Inference Scheduler** implements optimized request routing logic that leverages **dissagregated Prefill-Decode (PD)** inference cluster topologies.
+This document contains select component-level (i.e. low-level) architectural views such as *UML sequence diagrams* (to document certain interesting behaviors) and *UML class diagrams* pertaining to the [LLM-D Inference Scheduler](https://github.com/llm-d/llm-d-inference-scheduler/tree/main), which extends the [Gateway API Inference Extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/tree/main) a.k.a. GIE or IGW. The **Inference Scheduler** implements optimized request routing logic that leverages **dissagregated Prefill-Decode (PD)** inference cluster topologies.
 
 For high-level architectural views, consult the repos that this document references, as well as this excellent video by Robert Shaw presenting a technical overview of LLM-D's features:
 
@@ -111,6 +111,22 @@ PD (Disaggregated Prefill‑Decode) notes:
 - `ProcessResults` in the PD handler will transform decode results into a Data‑Parallel form when `primaryPort` is configured (it rewrites endpoint metadata ports and populates a header with the decode pod for subsequent PreRequest handling). When `prefill` also ran, `ProcessResults` includes both profile results in the returned `SchedulingResult`.
 
 ![Scheduler Sequence](diagrams/SchedulerSequence.png)
+
+## Datastore Sequences (initialization, update, read)
+
+This sequence shows how the EPP creates and populates the `Datastore` at startup and incrementally via pod watches. This behavior is implemented in the IGW, which the Inference Scheduler inherits.
+
+- **Created at startup:** `Runner` calls `datastore.NewDatastore(ctx, epFactory, ...)` to allocate internal maps and wire an `EndpointFactory`. See [cmd/epp/runner/runner.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/cmd/epp/runner/runner.go) and [pkg/epp/datastore/datastore.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/datastore/datastore.go).
+
+- **Pool bootstrap (full resync):** `InferencePoolReconciler` calls `Datastore.PoolSet(...)`; `PoolSet` stores the pool and runs `podResyncAll(...)` which list pods via the controller `reader` and seeds the store via `PodUpdateOrAddIfNotExist(...)` for ready pods.
+
+- **Pod watch updates:** `PodReconciler` receives pod create/update/delete events filtered by pool selector and calls `PodUpdateOrAddIfNotExist(...)` (for ready/matching pods) or `PodDelete(...)` (for removed/not-ready pods). See [pkg/epp/controller/pod_reconciler.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/controller/pod_reconciler.go).
+
+- **Endpoint creation & lifecycle:** `PodUpdateOrAddIfNotExist` builds `EndpointMetadata` per target port and either creates endpoints via `EndpointFactory.NewEndpoint(...)` or updates an existing endpoint's metadata (`ep.UpdateMetadata(...)`). `EndpointFactory` starts per-endpoint collectors; `ReleaseEndpoint` tears them down on deletion. See [pkg/epp/datastore/datastore.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/datastore/datastore.go) and [pkg/epp/datalayer/factory.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/datalayer/factory.go).
+
+- **Querying:** Runtime consumers (e.g., `requestcontrol.PodLocator`) call `Datastore.PodList(predicate)` to obtain candidate endpoints. `PodList` iterates the internal map and returns a slice of endpoints matching the predicate. See [pkg/epp/requestcontrol/locator.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/requestcontrol/locator.go) and `PodList` in [pkg/epp/datastore/datastore.go](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/master/pkg/epp/datastore/datastore.go).
+
+![Datastore Initialization Diagram](diagrams/DatastoreInitialization.png)
 
 
 ## Class diagram (focused on Inference Scheduler) 

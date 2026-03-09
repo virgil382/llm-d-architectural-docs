@@ -32,6 +32,16 @@ Last Update: 2026-03-09
 
 ---
 
+  ## Datastore Sequences (initialization, update, read)
+  - Key points:
+    - Datastore is created at startup via `datastore.NewDatastore(...)`; the `Runner` and `EndpointFactory` seed internal maps.
+    - Pool bootstrap performs a full resync (`PoolSet(...)`) which seeds endpoints via `PodUpdateOrAddIfNotExist(...)`.
+    - Pod watch events call `PodUpdateOrAddIfNotExist(...)` or `PodDelete(...)` to keep the store up to date.
+    - Runtime consumers query via `Datastore.PodList(predicate)` to obtain candidate endpoints for scheduling.
+  - Diagram:
+  ![Datastore Initialization Diagram](diagrams/DatastoreInitialization.png)
+
+
 ## Configuration Model & Class Diagram
 - Key points:
   - Visualizes relationships between Director, Scheduler, SchedulerProfile, plugin types, and runtime models (`LLMRequest`, `SchedulingResult`).

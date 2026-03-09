@@ -9,6 +9,6 @@ Last Update: 2026-03-09
 This repository contains architectural views and related artifacts for the LLM‑D project, including:
 
 - [LLM-D_Inference_Scheduler.md](LLM-D_Inference_Scheduler.md)
-  - A concise, developer-focused reference that provides behavioral and structural models describing the `Inference Scheduler`'s configuration dimensions and runtime behavior. Use it to locate where to implement new scheduling logic.
+  - A concise, developer-focused reference that provides behavioral and structural models describing the `Inference Scheduler`'s runtime behavior and the structural relationships between key classifiers including those that contain configurable attributes (e.g. configurable via YAML). Use it to locate where to implement new scheduling logic, and to infer which attributes affect which plugins.
 - [LLM-D_Inference_Scheduler (Short).md](LLM-D_Inference_Scheduler%20(Short).md)
   - A compact, slide-style overview of the above suitable for quick presentations.
