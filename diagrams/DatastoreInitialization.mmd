@@ -1,0 +1,46 @@
+sequenceDiagram
+    participant Runner as Runner
+    participant ExtProc as ExtProcServerRunner
+    participant Manager as ControllerManager
+    participant IPReconciler as InferencePoolReconciler
+    participant PodReconciler as PodReconciler
+    participant Datastore as Datastore
+    participant K8s as Kubernetes API
+    participant EpFactory as EndpointFactory
+    participant Pod as Pod
+    participant Director as Director/PodLocator
+
+    Runner->>Datastore: NewDatastore(ctx, epFactory, ...)
+    activate Datastore
+    Runner->>ExtProc: SetupWithManager(mgr, Datastore)
+    ExtProc->>Manager: Register controllers (InferencePoolReconciler, PodReconciler)
+
+    note over Manager,ExtProc: Manager.Start() runs controllers
+    Manager->>IPReconciler: Reconcile(InferencePool CR)
+    activate IPReconciler
+    IPReconciler->>Datastore: PoolSet(ctx, reader, endpointPool)
+    Datastore->>Datastore: podResyncAll(ctx, reader)
+    Datastore->>K8s: reader.List(Pods matching pool selector)
+    K8s-->>Datastore: PodList
+    loop for each ready Pod
+        Datastore->>Datastore: PodUpdateOrAddIfNotExist(pod)
+        Datastore->>EpFactory: NewEndpoint(metadata)
+        EpFactory-->>Datastore: Endpoint object stored
+    end
+    deactivate IPReconciler
+
+    %% Pod watch flow
+    K8s->>Manager: Pod create/update/delete event
+    Manager->>PodReconciler: Reconcile(pod)
+    activate PodReconciler
+    alt pod ready & matches pool
+        PodReconciler->>Datastore: PodUpdateOrAddIfNotExist(pod)
+    else pod removed or not ready
+        PodReconciler->>Datastore: PodDelete(podName)
+    end
+    deactivate PodReconciler
+
+    %% Consumer
+    Director->>Datastore: PodList(predicate)
+    Datastore-->>Director: candidatePods
+    deactivate Datastore
