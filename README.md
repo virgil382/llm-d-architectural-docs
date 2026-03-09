@@ -1,6 +1,6 @@
 # LLM-D Architectural Docs
 
-Last Update: 2026-03-08
+Last Update: 2026-03-09
 
 ## ⚠️ IMPORTANT DISCLAIMER
 
