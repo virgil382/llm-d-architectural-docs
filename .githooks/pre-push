@@ -8,15 +8,11 @@ changed=false
 for f in "${FILES[@]}"; do
   if [ -f "$f" ]; then
     if grep -q '^Last Update:' "$f"; then
-      # macOS sed vs GNU sed compatibility: create a backup then remove
-      if sed --version >/dev/null 2>&1; then
-        sed -i "s/^Last Update:.*/Last Update: $DATE/" "$f"
-      else
-        sed -i.bak "s/^Last Update:.*/Last Update: $DATE/" "$f" && rm -f "$f.bak"
-      fi
+      # Edit in a way that preserves the inode (don't mv over the file)
+      awk -v d="$DATE" '{ if ($0 ~ /^Last Update:/) { print "Last Update: " d } else { print } }' "$f" > "$f.tmp" && cat "$f.tmp" > "$f" && rm -f "$f.tmp"
       changed=true
     else
-      awk -v d="$DATE" 'NR==1{print; print ""; print "Last Update: " d; next} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+      awk -v d="$DATE" 'NR==1{print; print ""; print "Last Update: " d; next} {print}' "$f" > "$f.tmp" && cat "$f.tmp" > "$f" && rm -f "$f.tmp"
       changed=true
     fi
   fi
