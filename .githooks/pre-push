@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Update Last Update lines before pushing
+DATE=$(date -u +%F)
+FILES=("LLM-D_Inference_Scheduler.md" "README.md" "LLM-D_Inference_Scheduler (Short).md")
+changed=false
+for f in "${FILES[@]}"; do
+  if [ -f "$f" ]; then
+    if grep -q '^Last Update:' "$f"; then
+      # macOS sed vs GNU sed compatibility: create a backup then remove
+      if sed --version >/dev/null 2>&1; then
+        sed -i "s/^Last Update:.*/Last Update: $DATE/" "$f"
+      else
+        sed -i.bak "s/^Last Update:.*/Last Update: $DATE/" "$f" && rm -f "$f.bak"
+      fi
+      changed=true
+    else
+      awk -v d="$DATE" 'NR==1{print; print ""; print "Last Update: " d; next} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+      changed=true
+    fi
+  fi
+done
+
+if [ "$changed" = false ]; then
+  echo "No files updated."
+  exit 0
+fi
+
+git add "${FILES[@]}"
+if git diff --cached --quiet; then
+  echo "Nothing to commit"
+  exit 0
+fi
+
+git commit -m "chore: update Last Update dates (hook)"
+
+exit 0
